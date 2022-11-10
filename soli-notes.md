@@ -1,1 +1,1 @@
-init
+[读懂Redis源码，我总结了这7点心得](http://kaito-kidd.com/2021/09/23/read-redis-source-code/)

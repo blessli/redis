@@ -4220,6 +4220,7 @@ int redisIsSupervised(int mode) {
 
 
 int main(int argc, char **argv) {
+    printf("soli say: hello world\n");
     struct timeval tv;
     int j;
 
