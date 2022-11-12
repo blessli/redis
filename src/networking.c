@@ -95,6 +95,7 @@ client *createClient(int fd) {
         anetEnableTcpNoDelay(NULL,fd);
         if (server.tcpkeepalive)
             anetKeepAlive(NULL,fd,server.tcpkeepalive);
+        // 向 eventLoop 中注册了 readQueryFromClient。绑定读事件到事件 loop （开始接收命令请求）
         if (aeCreateFileEvent(server.el,fd,AE_READABLE,
             readQueryFromClient, c) == AE_ERR)
         {
@@ -730,7 +731,7 @@ static void acceptCommonHandler(int fd, int flags, char *ip) {
     server.stat_numconnections++;
     c->flags |= flags;
 }
-
+// 连接应答处理器：当客户端建立连接时进行的eventloop处理函数
 void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     int cport, cfd, max = MAX_ACCEPTS_PER_CALL;
     char cip[NET_IP_STR_LEN];
@@ -747,7 +748,7 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
             return;
         }
         serverLog(LL_VERBOSE,"Accepted %s:%d", cip, cport);
-        acceptCommonHandler(cfd,0,cip);
+        acceptCommonHandler(cfd,0,cip);// 进行socket 建立连接后的处理
     }
 }
 
@@ -1506,7 +1507,7 @@ void processInputBuffer(client *c) {
  * raw processInputBuffer(). */
 void processInputBufferAndReplicate(client *c) {
     if (!(c->flags & CLIENT_MASTER)) {
-        processInputBuffer(c);
+        processInputBuffer(c);// 处理输入缓冲区
     } else {
         size_t prev_offset = c->reploff;
         processInputBuffer(c);
@@ -1518,7 +1519,7 @@ void processInputBufferAndReplicate(client *c) {
         }
     }
 }
-
+// 命令请求处理器：处理从client中读取客户端的输入缓冲区内容
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     client *c = (client*) privdata;
     int nread, readlen;
@@ -1546,7 +1547,8 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     qblen = sdslen(c->querybuf);
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
-    nread = read(fd, c->querybuf+qblen, readlen);
+    // 从 fd 对应的socket中读取到 client 中的 querybuf 输入缓冲区
+    nread = read(fd, c->querybuf+qblen, readlen);// 成功则返回读到的字节数
     if (nread == -1) {
         if (errno == EAGAIN) {
             return;
