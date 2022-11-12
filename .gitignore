@@ -2,6 +2,7 @@
 *.o
 *.log
 dump.rdb
+dump_rdb.csv
 redis-benchmark
 redis-check-aof
 redis-check-rdb
