@@ -62,6 +62,7 @@
 struct aeEventLoop;
 
 /* Types and data structures */
+// 事件接口
 typedef void aeFileProc(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask);
 typedef int aeTimeProc(struct aeEventLoop *eventLoop, long long id, void *clientData);
 typedef void aeEventFinalizerProc(struct aeEventLoop *eventLoop, void *clientData);
@@ -69,10 +70,13 @@ typedef void aeBeforeSleepProc(struct aeEventLoop *eventLoop);
 
 /* File event structure */
 typedef struct aeFileEvent {
+    // 监听事件类型掩码，
+    // 值可以是 AE_READABLE 或 AE_WRITABLE ，
+    // 或者 AE_READABLE | AE_WRITABLE
     int mask; /* one of AE_(READABLE|WRITABLE|BARRIER) */
-    aeFileProc *rfileProc;
-    aeFileProc *wfileProc;
-    void *clientData;
+    aeFileProc *rfileProc;// 读事件处理器
+    aeFileProc *wfileProc;// 写事件处理器
+    void *clientData;// 多路复用库的私有数据
 } aeFileEvent;
 
 /* Time event structure */
@@ -99,10 +103,13 @@ typedef struct aeEventLoop {
     int setsize; /* max number of file descriptors tracked */
     long long timeEventNextId;
     time_t lastTime;     /* Used to detect system clock skew */
+    // 已注册的文件事件
     aeFileEvent *events; /* Registered events */
+    // 已就绪的文件事件
     aeFiredEvent *fired; /* Fired events */
     aeTimeEvent *timeEventHead;
     int stop;
+    // 多路复用库的私有数据
     void *apidata; /* This is used for polling API specific data */
     aeBeforeSleepProc *beforesleep;
     aeBeforeSleepProc *aftersleep;

@@ -82,7 +82,7 @@ void linkClient(client *c) {
     uint64_t id = htonu64(c->id);
     raxInsert(server.clients_index,(unsigned char*)&id,sizeof(id),c,NULL);
 }
-
+// 创建一个新客户端
 client *createClient(int fd) {
     client *c = zmalloc(sizeof(client));
 
@@ -95,7 +95,7 @@ client *createClient(int fd) {
         anetEnableTcpNoDelay(NULL,fd);
         if (server.tcpkeepalive)
             anetKeepAlive(NULL,fd,server.tcpkeepalive);
-        // 向 eventLoop 中注册了 readQueryFromClient。绑定读事件到事件 loop （开始接收命令请求）
+        // 绑定读事件到事件 loop （开始接收命令请求）
         if (aeCreateFileEvent(server.el,fd,AE_READABLE,
             readQueryFromClient, c) == AE_ERR)
         {
@@ -104,15 +104,17 @@ client *createClient(int fd) {
             return NULL;
         }
     }
-
+    // 初始化各个属性
     selectDb(c,0);
     uint64_t client_id;
     atomicGetIncr(server.next_client_id,client_id,1);
     c->id = client_id;
     c->fd = fd;
     c->name = NULL;
+    // 回复缓冲区的偏移量
     c->bufpos = 0;
     c->qb_pos = 0;
+    // 查询缓冲区
     c->querybuf = sdsempty();
     c->pending_querybuf = sdsempty();
     c->querybuf_peak = 0;
@@ -122,6 +124,7 @@ client *createClient(int fd) {
     c->cmd = c->lastcmd = NULL;
     c->multibulklen = 0;
     c->bulklen = -1;
+    // 已发送字节数
     c->sentlen = 0;
     c->flags = 0;
     c->ctime = c->lastinteraction = server.unixtime;
@@ -157,6 +160,7 @@ client *createClient(int fd) {
     c->client_list_node = NULL;
     listSetFreeMethod(c->pubsub_patterns,decrRefCountVoid);
     listSetMatchMethod(c->pubsub_patterns,listMatchObjects);
+    // 如果不是伪客户端，那么添加到服务器的客户端链表中
     if (fd != -1) linkClient(c);
     initClientMultiState(c);
     return c;
@@ -236,7 +240,7 @@ int prepareClientToWrite(client *c) {
 /* -----------------------------------------------------------------------------
  * Low level functions to add more data to output buffers.
  * -------------------------------------------------------------------------- */
-
+// 尝试将回复添加到 c->buf 中
 int _addReplyToBuffer(client *c, const char *s, size_t len) {
     size_t available = sizeof(c->buf)-c->bufpos;
 
@@ -297,6 +301,7 @@ void _addReplyStringToList(client *c, const char *s, size_t len) {
 
 /* Add the object 'obj' string representation to the client output buffer. */
 void addReply(client *c, robj *obj) {
+    // 为客户端安装写处理器到事件循环
     if (prepareClientToWrite(c) != C_OK) return;
 
     if (sdsEncodedObject(obj)) {
@@ -663,6 +668,7 @@ int clientHasPendingReplies(client *c) {
 
 #define MAX_ACCEPTS_PER_CALL 1000
 static void acceptCommonHandler(int fd, int flags, char *ip) {
+    // 创建客户端
     client *c;
     if ((c = createClient(fd)) == NULL) {
         serverLog(LL_WARNING,
@@ -731,7 +737,7 @@ static void acceptCommonHandler(int fd, int flags, char *ip) {
     server.stat_numconnections++;
     c->flags |= flags;
 }
-// 连接应答处理器：当客户端建立连接时进行的eventloop处理函数
+// 创建一个 TCP 连接处理器
 void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     int cport, cfd, max = MAX_ACCEPTS_PER_CALL;
     char cip[NET_IP_STR_LEN];
@@ -740,6 +746,7 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     UNUSED(privdata);
 
     while(max--) {
+        // accept 客户端连接
         cfd = anetTcpAccept(server.neterr, fd, cip, sizeof(cip), &cport);
         if (cfd == ANET_ERR) {
             if (errno != EWOULDBLOCK)
@@ -748,7 +755,8 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
             return;
         }
         serverLog(LL_VERBOSE,"Accepted %s:%d", cip, cport);
-        acceptCommonHandler(cfd,0,cip);// 进行socket 建立连接后的处理
+        // 为客户端创建客户端状态（redisClient）
+        acceptCommonHandler(cfd,0,cip);
     }
 }
 
@@ -1070,6 +1078,7 @@ int writeToClient(int fd, client *c, int handler_installed) {
 }
 
 /* Write event handler. Just send data to the client. */
+// 负责传送命令回复的写处理器
 void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     UNUSED(el);
     UNUSED(mask);
@@ -1426,6 +1435,7 @@ int processMultibulkBuffer(client *c) {
  * more query buffer to process, because we read more data from the socket
  * or because a client was blocked and later reactivated, so there could be
  * pending query buffer, already representing a full command, to process. */
+// 处理客户端输入的命令内容
 void processInputBuffer(client *c) {
     server.current_client = c;
 
@@ -1472,6 +1482,7 @@ void processInputBuffer(client *c) {
             resetClient(c);
         } else {
             /* Only reset the client when the command was executed. */
+            // 执行命令，并重置客户端
             if (processCommand(c) == C_OK) {
                 if (c->flags & CLIENT_MASTER && !(c->flags & CLIENT_MULTI)) {
                     /* Update the applied replication offset of our master. */
@@ -1519,14 +1530,14 @@ void processInputBufferAndReplicate(client *c) {
         }
     }
 }
-// 命令请求处理器：处理从client中读取客户端的输入缓冲区内容
+// 读取客户端的查询缓冲区内容
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     client *c = (client*) privdata;
     int nread, readlen;
     size_t qblen;
     UNUSED(el);
     UNUSED(mask);
-
+    // 读入长度（默认为 16 K）
     readlen = PROTO_IOBUF_LEN;
     /* If this is a multi bulk request, and we are processing a bulk reply
      * that is large enough, try to maximize the probability that the query
@@ -1547,8 +1558,8 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     qblen = sdslen(c->querybuf);
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
-    // 从 fd 对应的socket中读取到 client 中的 querybuf 输入缓冲区
-    nread = read(fd, c->querybuf+qblen, readlen);// 成功则返回读到的字节数
+    // 读入内容到查询缓存
+    nread = read(fd, c->querybuf+qblen, readlen);
     if (nread == -1) {
         if (errno == EAGAIN) {
             return;
@@ -1557,7 +1568,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
             freeClient(c);
             return;
         }
-    } else if (nread == 0) {
+    } else if (nread == 0) {// 遇到 EOF
         serverLog(LL_VERBOSE, "Client closed connection");
         freeClient(c);
         return;
@@ -1568,7 +1579,8 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         c->pending_querybuf = sdscatlen(c->pending_querybuf,
                                         c->querybuf+qblen,nread);
     }
-
+    // 根据内容，更新查询缓冲区（SDS） free 和 len 属性
+    // 并将 '\0' 正确地放到内容的最后
     sdsIncrLen(c->querybuf,nread);
     c->lastinteraction = server.unixtime;
     if (c->flags & CLIENT_MASTER) c->read_reploff += nread;
@@ -1590,6 +1602,8 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
      * was actually applied to the master state: this quantity, and its
      * corresponding part of the replication stream, will be propagated to
      * the sub-slaves and to the replication backlog. */
+    // 从查询缓存重读取内容，创建参数，并执行命令
+    // 函数会执行到缓存中的所有内容都被处理完为止
     processInputBufferAndReplicate(c);
 }
 
@@ -2241,6 +2255,7 @@ int clientsArePaused(void) {
  * write, close sequence needed to serve a client.
  *
  * The function returns the total number of events processed. */
+// 让服务器在被阻塞的情况下，仍然处理某些事件。
 int processEventsWhileBlocked(void) {
     int iterations = 4; /* See the function top-comment. */
     int count = 0;

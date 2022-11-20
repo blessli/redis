@@ -465,6 +465,7 @@ typedef long long ustime_t; /* microsecond time type. */
 /* A redis object, that is a type able to hold a string / list / set */
 
 /* The actual Redis Object */
+// 对象类型
 #define OBJ_STRING 0    /* String object. */
 #define OBJ_LIST 1      /* List object. */
 #define OBJ_SET 2       /* Set object. */
@@ -483,6 +484,7 @@ typedef long long ustime_t; /* microsecond time type. */
  * in order to dispatch the loading to the right module, plus a 10 bits
  * encoding version. */
 #define OBJ_MODULE 5    /* Module object. */
+// redis5.0新特性
 #define OBJ_STREAM 6    /* Stream object. */
 
 /* Extract encver / signature from a module type ID. */
@@ -613,9 +615,10 @@ typedef struct RedisModuleDigest {
 #define LRU_CLOCK_RESOLUTION 1000 /* LRU clock resolution in ms */
 
 #define OBJ_SHARED_REFCOUNT INT_MAX
-typedef struct redisObject {
+typedef struct redisObject {// redis对象
     unsigned type:4;
     unsigned encoding:4;
+    // 用于计算空转时间
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
@@ -949,6 +952,7 @@ struct redisServer {
     int config_hz;              /* Configured HZ value. May be different than
                                    the actual 'hz' field value if dynamic-hz
                                    is enabled. */
+    // serverCron() 每秒调用的次数，默认为100ms
     int hz;                     /* serverCron() calls frequency in hertz */
     redisDb *db;
     dict *commands;             /* Command table */
@@ -956,6 +960,7 @@ struct redisServer {
     aeEventLoop *el;
     unsigned int lruclock;      /* Clock for LRU eviction */
     int shutdown_asap;          /* SHUTDOWN needed ASAP */
+    // 在执行 serverCron() 时进行渐进式 rehash
     int activerehashing;        /* Incremental rehash in serverCron() */
     int active_defrag_running;  /* Active defragmentation running (holds current scan aggressiveness) */
     char *requirepass;          /* Pass for AUTH command, or NULL */
@@ -983,10 +988,13 @@ struct redisServer {
     char *unixsocket;           /* UNIX socket path */
     mode_t unixsocketperm;      /* UNIX socket permission */
     int ipfd[CONFIG_BINDADDR_MAX]; /* TCP socket file descriptors */
+    // 描述符数量
     int ipfd_count;             /* Used slots in ipfd[] */
+    // UNIX 套接字文件描述符
     int sofd;                   /* Unix socket file descriptor */
     int cfd[CONFIG_BINDADDR_MAX];/* Cluster bus listening socket */
     int cfd_count;              /* Used slots in cfd[] */
+    // 一个链表，保存了所有客户端状态结构
     list *clients;              /* List of active clients */
     list *clients_to_close;     /* Clients to close asynchronously */
     list *clients_pending_write; /* There is to write or install handler. */
@@ -1303,7 +1311,7 @@ struct redisServer {
     pthread_mutex_t next_client_id_mutex;
     pthread_mutex_t unixtime_mutex;
 };
-
+// 记录订阅模式的结构
 typedef struct pubsubPattern {
     client *client;
     robj *pattern;
@@ -1311,9 +1319,10 @@ typedef struct pubsubPattern {
 
 typedef void redisCommandProc(client *c);
 typedef int *redisGetKeysProc(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
+// Redis 命令
 struct redisCommand {
     char *name;
-    redisCommandProc *proc;
+    redisCommandProc *proc;// 实现函数
     int arity;
     char *sflags; /* Flags as string representation, one char per flag. */
     int flags;    /* The actual flags, obtained from the 'sflags' field. */
@@ -1324,6 +1333,9 @@ struct redisCommand {
     int firstkey; /* The first argument that's a key (0 = no keys) */
     int lastkey;  /* The last argument that's a key */
     int keystep;  /* The step between first and last key */
+    // 统计信息
+    // microseconds 记录了命令执行耗费的总毫微秒数
+    // calls 是命令被执行的总次数
     long long microseconds, calls;
 };
 

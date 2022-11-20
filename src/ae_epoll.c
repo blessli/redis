@@ -35,7 +35,7 @@ typedef struct aeApiState {
     int epfd;
     struct epoll_event *events;
 } aeApiState;
-
+// 创建一个新的 epoll 实例，并将它赋值给 eventLoop
 static int aeApiCreate(aeEventLoop *eventLoop) {
     aeApiState *state = zmalloc(sizeof(aeApiState));
 
@@ -45,6 +45,7 @@ static int aeApiCreate(aeEventLoop *eventLoop) {
         zfree(state);
         return -1;
     }
+    // 创建 epoll 实例
     state->epfd = epoll_create(1024); /* 1024 is just a hint for the kernel */
     if (state->epfd == -1) {
         zfree(state->events);
@@ -104,7 +105,7 @@ static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int delmask) {
         epoll_ctl(state->epfd,EPOLL_CTL_DEL,fd,&ee);
     }
 }
-
+// 获取可执行事件
 static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
     aeApiState *state = eventLoop->apidata;
     int retval, numevents = 0;
@@ -114,7 +115,8 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
             tvp ? (tvp->tv_sec*1000 + tvp->tv_usec/1000) : -1);
     if (retval > 0) {
         int j;
-
+        // 为已就绪事件设置相应的模式
+        // 并加入到 eventLoop 的 fired 数组中
         numevents = retval;
         for (j = 0; j < numevents; j++) {
             int mask = 0;
@@ -128,9 +130,10 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
             eventLoop->fired[j].mask = mask;
         }
     }
+    // 返回已就绪事件个数
     return numevents;
 }
-
+// 返回当前正在使用的 poll 库的名字
 static char *aeApiName(void) {
     return "epoll";
 }

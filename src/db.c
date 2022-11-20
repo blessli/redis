@@ -52,11 +52,13 @@ void updateLFU(robj *val) {
 /* Low level key lookup API, not actually called directly from commands
  * implementations that should instead rely on lookupKeyRead(),
  * lookupKeyWrite() and lookupKeyReadWithFlags(). */
+// 从数据库 db 中取出键 key 的值（对象）
 robj *lookupKey(redisDb *db, robj *key, int flags) {
+    // 查找键空间
     dictEntry *de = dictFind(db->dict,key->ptr);
     if (de) {
+        // 取出值
         robj *val = dictGetVal(de);
-
         /* Update the access time for the ageing algorithm.
          * Don't do it if we have a saving child, as this will trigger
          * a copy on write madness. */
@@ -99,7 +101,7 @@ robj *lookupKey(redisDb *db, robj *key, int flags) {
  * expiring our key via DELs in the replication link. */
 robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags) {
     robj *val;
-
+    // 检查 key 释放已经过期
     if (expireIfNeeded(db,key) == 1) {
         /* Key expired. If we are in the context of a master, expireIfNeeded()
          * returns 0 only when the key does not exist at all, so it's safe
@@ -130,6 +132,7 @@ robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags) {
             return NULL;
         }
     }
+    // 从数据库中取出键的值
     val = lookupKey(db,key,flags);
     if (val == NULL)
         server.stat_keyspace_misses++;
@@ -153,7 +156,7 @@ robj *lookupKeyWrite(redisDb *db, robj *key) {
     expireIfNeeded(db,key);
     return lookupKey(db,key,LOOKUP_NONE);
 }
-
+// 为执行读取操作而从数据库中查找返回 key 的值
 robj *lookupKeyReadOrReply(client *c, robj *key, robj *reply) {
     robj *o = lookupKeyRead(c->db, key);
     if (!o) addReply(c,reply);
