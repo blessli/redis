@@ -11,5 +11,12 @@ cd /usr/local/projs/redis/src && ./redis-benchmark -h
 rdb -c memory dump.rdb > dump_rdb.csv
 其中：size_in_bytes 内存的大小，由此可以查询内存最高的key
 
+```sh
+/home/github/redis/src/redis-cli --cluster create --cluster-replicas 1 10.0.12.2:7001 10.0.12.2:7002 10.0.12.2:7003 10.0.12.2:7004 10.0.12.2:7005 10.0.12.2:7006
+./src/redis-cli -h 10.0.12.2 -p 7001 -c
+cluser nodes
+cluser info
+```
+
 
 
